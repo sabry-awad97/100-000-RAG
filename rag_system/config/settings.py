@@ -64,6 +64,16 @@ class GeminiConfig:
 
 
 @dataclass
+class EmbeddingConfig:
+    """Local embedding service configuration."""
+
+    service_url: str = os.getenv(
+        "LOCAL_EMBEDDING_URL", "http://localhost:11434/v1/embeddings"
+    )
+    model: str = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+
+
+@dataclass
 class ChunkingConfig:
     """Document chunking configuration."""
 
@@ -86,8 +96,8 @@ class RetrievalConfig:
 
 
 @dataclass
-class CacheConfig:
-    """Semantic cache configuration."""
+class CacheSettings:
+    """Semantic cache settings configuration."""
 
     enabled: bool = os.getenv("CACHE_ENABLED", "true").lower() == "true"
     similarity_threshold: float = float(os.getenv("CACHE_SIMILARITY_THRESHOLD", "0.95"))
@@ -120,9 +130,10 @@ class Settings:
         self.redis = RedisConfig()
         self.openai = OpenAIConfig()
         self.gemini = GeminiConfig()
+        self.embedding = EmbeddingConfig()
         self.chunking = ChunkingConfig()
         self.retrieval = RetrievalConfig()
-        self.cache = CacheConfig()
+        self.cache = CacheSettings()
         self.monitoring = MonitoringConfig()
 
         # Validate critical settings
@@ -189,6 +200,7 @@ class Settings:
                 **asdict(self.gemini),
                 "api_key": "***",  # Mask API key
             },
+            "embedding": asdict(self.embedding),
             "chunking": asdict(self.chunking),
             "retrieval": asdict(self.retrieval),
             "cache": asdict(self.cache),

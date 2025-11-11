@@ -63,7 +63,7 @@ class RAGSystemClient:
         """Initialize embedding model."""
         print("📊 Initializing embedder...")
         self.embedder = LocalEmbedder(
-            service_url=self.settings.llm.provider  # Use configured URL
+            service_url=self.settings.embedding.service_url  # Use configured embedding service URL
         )
 
     def _init_indexer(self):
@@ -197,13 +197,16 @@ class RAGSystemClient:
         """
         print(f"\n📥 Ingesting {len(documents)} documents...")
 
-        for i, doc in enumerate(documents, 1):
-            print(f"  Processing document {i}/{len(documents)}...")
-            self.ingest_pipeline.process(
-                text=doc["text"], metadata=doc.get("metadata", {})
-            )
+        # Use pipeline's batch interface
+        stats = self.ingest_pipeline.ingest_documents(documents)
 
-        print(f"✅ Successfully ingested {len(documents)} documents\n")
+        print(
+            f"✅ Successfully ingested {stats['successful']}/{stats['total_documents']} documents"
+        )
+        print(f"   Total chunks created: {stats['total_chunks']}")
+        if stats["failed"] > 0:
+            print(f"   ⚠️  Failed: {stats['failed']} documents")
+        print()
 
     def query(self, question: str, top_k: int = 5):
         """
@@ -226,7 +229,7 @@ class RAGSystemClient:
             # Direct generation without retrieval (for demonstration)
             result = self.generator.generate(
                 query=question,
-                context=[],  # Empty context
+                retrieved_docs=[],  # Empty retrieved documents
             )
 
             print(f"💡 Answer: {result['answer']}\n")

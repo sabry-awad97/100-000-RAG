@@ -7,6 +7,7 @@ and citation extraction for production RAG systems.
 
 from typing import List, Dict, Optional, Protocol
 from dataclasses import dataclass
+from google.genai import types
 
 
 class LLMClient(Protocol):
@@ -280,11 +281,9 @@ class GeminiClient:
         """Lazy load Gemini client."""
         if self._client is None:
             from google import genai
-            import os
 
-            # Set API key in environment for genai client
-            os.environ["GEMINI_API_KEY"] = self.api_key
-            self._client = genai.Client()
+            # Pass API key directly to avoid mutating global state
+            self._client = genai.Client(api_key=self.api_key)
         return self._client
 
     def generate(
@@ -306,43 +305,54 @@ class GeminiClient:
         Returns:
             Generated text
         """
-        # Convert OpenAI message format to Gemini format
-        contents = self._convert_messages_to_gemini_format(messages)
+        # Extract system messages
+        system_messages = [
+            msg["content"] for msg in messages if msg.get("role") == "system"
+        ]
+        system_instruction = "\n\n".join(system_messages) if system_messages else None
+
+        # Filter out system messages for content
+        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+
+        # Convert remaining messages to Gemini format
+        contents = self._convert_messages_to_gemini_format(non_system_messages)
+
+        # Build config with system instruction
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+
+        if system_instruction:
+            config.system_instruction = system_instruction
 
         # Generate response
         response = self.client.models.generate_content(
             model=model,
             contents=contents,
-            config={
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-            },
+            config=config,
         )
 
         return response.text
 
-    def _convert_messages_to_gemini_format(
-        self, messages: List[Dict[str, str]]
-    ) -> str:
+    def _convert_messages_to_gemini_format(self, messages: List[Dict[str, str]]) -> str:
         """
-        Convert OpenAI message format to Gemini format.
+        Convert OpenAI message format to Gemini format (excluding system messages).
 
         Args:
-            messages: List of message dictionaries in OpenAI format
+            messages: List of message dictionaries in OpenAI format (no system messages)
 
         Returns:
             Formatted content string for Gemini
         """
-        # Gemini uses a simpler format - combine system and user messages
+        # Convert user and assistant messages to Gemini format
         content_parts = []
 
         for message in messages:
             role = message.get("role", "")
             content = message.get("content", "")
 
-            if role == "system":
-                content_parts.append(f"Instructions: {content}")
-            elif role == "user":
+            if role == "user":
                 content_parts.append(f"Query: {content}")
             elif role == "assistant":
                 content_parts.append(f"Response: {content}")
