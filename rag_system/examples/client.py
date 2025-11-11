@@ -17,7 +17,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from rag_system.config import get_settings
+from rag_system.config import get_settings, reset_settings
 from rag_system.core.chunking import SemanticChunker
 from rag_system.core.indexing import DocumentIndexer, IndexConfig
 from rag_system.core.retrieval import LocalEmbedder, HybridRetriever
@@ -62,21 +62,53 @@ class RAGSystemClient:
     def _init_embedder(self):
         """Initialize embedding model."""
         print("📊 Initializing embedder...")
-        self.embedder = LocalEmbedder(
+        backend = LocalEmbedder(
             service_url=self.settings.embedding.service_url  # Use configured embedding service URL
         )
+
+        # Lightweight adapter to match pipeline protocol
+        class _EmbedderAdapter:
+            def __init__(self, backend):
+                self._b = backend
+
+            def embed(self, text):
+                return self._b.embed_text(text)
+
+            def embed_batch(self, texts):
+                return self._b.embed_texts(texts)
+
+            def get_embedding_dimension(self):
+                return self._b.get_embedding_dimension()
+
+        self.embedder = _EmbedderAdapter(backend)
 
     def _init_indexer(self):
         """Initialize document indexer."""
         print("🗄️  Initializing indexer...")
+        # Match Qdrant vector size to embedder
+        embedding_dim = getattr(
+            self.embedder, "get_embedding_dimension", lambda: None
+        )()
+        desired_dim = embedding_dim or self.settings.qdrant.vector_size
+        if embedding_dim and embedding_dim != self.settings.qdrant.vector_size:
+            print(
+                f"⚠️  Overriding Qdrant vector_size "
+                f"{self.settings.qdrant.vector_size} -> {embedding_dim} to match embedder"
+            )
         index_config = IndexConfig(
             collection_name=self.settings.qdrant.collection_name,
-            vector_size=self.settings.qdrant.vector_size,
+            vector_size=desired_dim,
             on_disk=self.settings.qdrant.on_disk,
         )
         self.indexer = DocumentIndexer(
             qdrant_url=self.settings.qdrant.url, config=index_config
         )
+        # Ensure collection exists
+        try:
+            self.indexer.get_collection_info(index_config.collection_name)
+        except Exception:
+            print(f"🆕 Creating collection '{index_config.collection_name}'...")
+            self.indexer.create_collection(index_config)
 
     def _init_cache(self, use_cache: bool):
         """Initialize semantic cache."""
@@ -287,10 +319,10 @@ class RAGSystemClient:
 
         # Monitor stats
         if self.monitor:
-            metrics = self.monitor.get_metrics()
+            metrics = self.monitor.get_metrics_summary()
             print(f"Total Queries: {metrics.get('total_queries', 0)}")
             print(f"Cache Hit Rate: {metrics.get('cache_hit_rate', 0):.2%}")
-            print(f"Avg Latency: {metrics.get('avg_latency', 0):.2f}s")
+            print(f"Avg Latency: {metrics.get('avg_latency_ms', 0):.2f}ms")
 
         print()
 
@@ -327,7 +359,7 @@ def example_basic_usage():
     questions = ["What is Python?", "Explain machine learning", "How does RAG work?"]
 
     for question in questions:
-        result = rag.query(question, top_k=3)
+        rag.query(question, top_k=3)
 
     # Get statistics
     rag.get_stats()
@@ -342,12 +374,14 @@ def example_multi_llm():
     # Test with OpenAI
     print("🔵 Testing with OpenAI...")
     os.environ["LLM_PROVIDER"] = "openai"
+    reset_settings()  # Clear cached settings to pick up new provider
     rag_openai = RAGSystemClient(use_cache=False, use_monitoring=False)
     rag_openai.query("What is artificial intelligence?")
 
     # Test with Gemini
     print("🔴 Testing with Gemini...")
     os.environ["LLM_PROVIDER"] = "gemini"
+    reset_settings()  # Clear cached settings to pick up new provider
     rag_gemini = RAGSystemClient(use_cache=False, use_monitoring=False)
     rag_gemini.query("What is artificial intelligence?")
 
