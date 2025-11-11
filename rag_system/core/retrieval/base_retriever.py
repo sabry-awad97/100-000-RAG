@@ -6,7 +6,7 @@ enabling flexible composition and testing.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 
 
@@ -58,7 +58,7 @@ class VectorRetriever(ABC):
 
     @abstractmethod
     def search_vectors(
-        self, query_vector: List[float], top_k: int = 10, filters: Dict = None
+        self, query_vector: List[float], top_k: int = 10, filters: Optional[Dict] = None
     ) -> List[RetrievalResult]:
         """
         Search using vector similarity.

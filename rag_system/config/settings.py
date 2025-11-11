@@ -155,5 +155,58 @@ class Settings:
         }
 
 
-# Global settings instance
-settings = Settings()
+# Lazy initialization of settings
+_settings_instance: Optional[Settings] = None
+
+
+def get_settings(validate: bool = False) -> Settings:
+    """
+    Get the global settings instance (lazy initialization).
+
+    This function creates the Settings instance on first call and caches it.
+    This prevents validation errors at import time.
+
+    Args:
+        validate: If True, validates that required settings are present
+
+    Returns:
+        Settings instance
+
+    Raises:
+        ValueError: If validate=True and required settings are missing
+    """
+    global _settings_instance
+
+    if _settings_instance is None:
+        _settings_instance = Settings()
+
+    if validate:
+        # Validate required settings
+        if not _settings_instance.openai.api_key:
+            raise ValueError(
+                "OPENAI_API_KEY environment variable is required. "
+                "Please set it in your .env file or environment."
+            )
+
+    return _settings_instance
+
+
+def reset_settings():
+    """Reset the settings instance (useful for testing)."""
+    global _settings_instance
+    _settings_instance = None
+
+
+# For backward compatibility, create a lazy property-like access
+# This allows `from config import settings` to still work
+class _SettingsProxy:
+    """Proxy object that lazily initializes settings on attribute access."""
+
+    def __getattr__(self, name):
+        return getattr(get_settings(), name)
+
+    def __repr__(self):
+        return repr(get_settings())
+
+
+settings = _SettingsProxy()

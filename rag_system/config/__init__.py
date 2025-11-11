@@ -1,7 +1,6 @@
 """Configuration module for RAG system."""
 
 from .settings import (
-    Settings,
     QdrantConfig,
     RedisConfig,
     OpenAIConfig,
@@ -9,11 +8,13 @@ from .settings import (
     RetrievalConfig,
     CacheConfig,
     MonitoringConfig,
+    Settings,
     settings,
+    get_settings,
+    reset_settings,
 )
 
 __all__ = [
-    "Settings",
     "QdrantConfig",
     "RedisConfig",
     "OpenAIConfig",
@@ -21,5 +22,8 @@ __all__ = [
     "RetrievalConfig",
     "CacheConfig",
     "MonitoringConfig",
+    "Settings",
     "settings",
+    "get_settings",
+    "reset_settings",
 ]

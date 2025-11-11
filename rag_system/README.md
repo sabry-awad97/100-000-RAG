@@ -29,15 +29,36 @@ rag_system/
 
 ## Installation
 
+### 1. Start Docker Services
+
+```bash
+# Start Qdrant and Redis using Docker
+docker-compose up -d
+
+# Verify services are running
+docker-compose ps
+```
+
+### 2. Install Python Dependencies
+
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Set environment variables
-export OPENAI_API_KEY="your-api-key"
-export QDRANT_URL="http://localhost:6333"
-export REDIS_HOST="localhost"
+# Copy environment template
+cp .env.example .env
+
+# Edit .env and add your OpenAI API key
 ```
+
+### 3. Initialize Qdrant Collection
+
+```bash
+# Create Qdrant collection
+python -m rag_system.scripts.migrate_qdrant create rag_documents
+```
+
+See [DOCKER.md](DOCKER.md) for detailed Docker setup instructions.
 
 ## Quick Start
 
@@ -59,9 +80,10 @@ print(result["sources"])
 Configuration is managed through environment variables. See `.env.example` for all options.
 
 Key settings:
-
-- `OPENAI_API_KEY`: OpenAI API key
+- `OPENAI_API_KEY`: OpenAI API key (for LLM generation only)
 - `QDRANT_URL`: Qdrant server URL
+- `QDRANT_VECTOR_SIZE`: Vector dimensions (768 for Gemma)
+- `LOCAL_EMBEDDING_URL`: Local embedding service URL
 - `REDIS_HOST`: Redis server host
 - `CHUNK_SIZE`: Document chunk size (default: 300 tokens)
 - `CACHE_ENABLED`: Enable semantic caching (default: true)
@@ -78,6 +100,28 @@ pytest tests/test_chunker.py
 # Run with coverage
 pytest --cov=rag_system tests/
 ```
+
+## Docker Services
+
+The system uses Docker for:
+- **Qdrant**: Vector database
+- **Redis**: Semantic cache
+- **Local Embeddings**: Docker AI Gemma model for local embedding generation
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+**Local Embeddings**: The system uses the Gemma embedding model from Docker AI, eliminating external API calls for embeddings. This provides 768-dimensional embeddings with zero cost and complete data privacy.
+
+See [DOCKER.md](DOCKER.md) for complete Docker documentation.
 
 ## Scripts
 

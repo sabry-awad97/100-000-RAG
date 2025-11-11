@@ -95,6 +95,7 @@ class RetrievalPipeline:
                     "results": results,
                     "cache_hit": True,
                     "similarity": cached_result.get("similarity", 1.0),
+                    "num_results": len(results),
                 }
 
         # Retrieve from retriever

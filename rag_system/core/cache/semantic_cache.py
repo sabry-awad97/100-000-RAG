@@ -45,6 +45,8 @@ class SemanticCache:
         """
         Retrieve cached results for semantically similar query.
 
+        Uses Redis SCAN to avoid blocking on large keyspaces.
+
         Args:
             query: Query string
             query_embedding: Query embedding vector
@@ -52,38 +54,37 @@ class SemanticCache:
         Returns:
             Cached results if similar query found, None otherwise
         """
-        # Get all cached queries
-        # Note: In production, use vector similarity search or ANN
-        cache_keys = self.redis.keys("cache:query:*")
-
-        if not cache_keys:
-            return None
-
         best_match = None
         highest_similarity = 0.0
 
-        for key in cache_keys:
-            cached_data = self.redis.hgetall(key)
+        # Use SCAN instead of KEYS to avoid blocking Redis
+        # scan_iter handles the cursor management automatically
+        for key in self.redis.scan_iter(match="cache:query:*", count=100):
+            try:
+                cached_data = self.redis.hgetall(key)
 
-            if not cached_data or b"embedding" not in cached_data:
+                if not cached_data or b"embedding" not in cached_data:
+                    continue
+
+                cached_embedding = np.frombuffer(
+                    cached_data[b"embedding"], dtype=np.float32
+                )
+
+                # Compute cosine similarity
+                similarity = self._cosine_similarity(query_embedding, cached_embedding)
+
+                # Track best match above threshold
+                if similarity >= self.threshold and similarity > highest_similarity:
+                    highest_similarity = similarity
+                    best_match = {
+                        "results": json.loads(cached_data[b"results"].decode()),
+                        "cache_hit": True,
+                        "similarity": float(similarity),
+                        "cached_query": cached_data[b"query"].decode(),
+                    }
+            except Exception:
+                # Skip corrupted or expired keys
                 continue
-
-            cached_embedding = np.frombuffer(
-                cached_data[b"embedding"], dtype=np.float32
-            )
-
-            # Compute cosine similarity
-            similarity = self._cosine_similarity(query_embedding, cached_embedding)
-
-            # Track best match above threshold
-            if similarity >= self.threshold and similarity > highest_similarity:
-                highest_similarity = similarity
-                best_match = {
-                    "results": json.loads(cached_data[b"results"].decode()),
-                    "cache_hit": True,
-                    "similarity": float(similarity),
-                    "cached_query": cached_data[b"query"].decode(),
-                }
 
         return best_match
 
@@ -99,18 +100,23 @@ class SemanticCache:
 
         Args:
             query: Query string
-            query_embedding: Query embedding vector
-            results: Query results to cache
-            ttl: Optional TTL override
+            query_embedding: Query embedding vector (numpy array or list)
+            results: Retrieved results to cache
+            ttl: Time-to-live in seconds (uses default if None)
         """
+        if ttl is None:
+            ttl = self.default_ttl
+
+        # Normalize embedding to numpy array to handle both lists and arrays
+        embedding = np.asarray(query_embedding, dtype=np.float32)
+
         cache_key = f"cache:query:{hash(query)}"
-        ttl = ttl or self.default_ttl
 
         self.redis.hset(
             cache_key,
             mapping={
                 "query": query,
-                "embedding": query_embedding.astype(np.float32).tobytes(),
+                "embedding": embedding.tobytes(),
                 "results": json.dumps(results),
                 "timestamp": time.time(),
             },
@@ -122,24 +128,43 @@ class SemanticCache:
         """
         Invalidate cache entries matching pattern.
 
+        Uses Redis SCAN to avoid blocking on large keyspaces.
+
         Args:
-            pattern: Redis key pattern
+            pattern: Redis key pattern to match
         """
-        keys = self.redis.keys(pattern)
-        if keys:
-            self.redis.delete(*keys)
+        # Use SCAN to collect keys in batches
+        keys_to_delete = []
+        batch_size = 1000  # Delete in batches to avoid large commands
+
+        for key in self.redis.scan_iter(match=pattern, count=100):
+            keys_to_delete.append(key)
+
+            # Delete in batches
+            if len(keys_to_delete) >= batch_size:
+                self.redis.delete(*keys_to_delete)
+                keys_to_delete = []
+
+        # Delete remaining keys
+        if keys_to_delete:
+            self.redis.delete(*keys_to_delete)
 
     def get_stats(self) -> Dict:
         """
         Get cache statistics.
 
+        Uses Redis SCAN to avoid blocking on large keyspaces.
+
         Returns:
             Dictionary with cache statistics
         """
-        keys = self.redis.keys("cache:query:*")
+        # Count keys using SCAN
+        entry_count = 0
+        for _ in self.redis.scan_iter(match="cache:query:*", count=100):
+            entry_count += 1
 
         return {
-            "total_entries": len(keys),
+            "total_entries": entry_count,
             "memory_usage": self.redis.info("memory").get("used_memory_human", "N/A"),
         }
 

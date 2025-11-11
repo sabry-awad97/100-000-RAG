@@ -1,17 +1,17 @@
 """
-Combined RAG pipeline for end-to-end query processing.
+Generation pipeline for RAG system.
 
-This module integrates retrieval and generation for complete
-RAG functionality with monitoring and caching.
+This module orchestrates the complete RAG workflow including
+retrieval and generation.
 """
 
-from typing import Dict, Optional
 import logging
+from typing import Dict, Optional
 
 from .retrieval_pipeline import RetrievalPipeline
 from ..core.generation import RAGGenerator
 from ..core.monitoring import RAGMonitor
-from ..config import settings
+from ..config import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,9 @@ class GenerationPipeline:
                 "context_used": generation_result["context_used"],
                 "num_context_docs": generation_result["num_context_docs"],
                 "cache_hit": retrieval_result.get("cache_hit", False),
-                "num_retrieved": retrieval_result.get("num_results", 0),
+                "num_retrieved": retrieval_result.get(
+                    "num_results", len(retrieval_result.get("results", []))
+                ),
             }
 
             logger.info(
@@ -162,6 +164,7 @@ class RAGPipeline:
         # Note: This is a simplified example
         # In production, implement proper dependency injection
 
+        settings = get_settings(validate=True)
         logger.info("Creating RAG pipeline from settings")
 
         # Create retriever (placeholder - implement with actual components)

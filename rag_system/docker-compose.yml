@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag_qdrant
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC API
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - rag_network
+    depends_on:
+      - embedding-model
+
+  redis:
+    image: redis:8-alpine
+    container_name: rag_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+  embedding-service:
+    image: python:3.11-slim
+    container_name: rag_embedding_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./embedding_service:/app
+    working_dir: /app
+    command: python server.py
+    restart: unless-stopped
+    networks:
+      - rag_network
+    models:
+      - embedding-model
+    environment:
+      - MODEL_NAME=gemma
+
+models:
+  embedding-model:
+    image: embeddinggemma:latest
+    # Docker AI will automatically pull and serve this model
+
+volumes:
+  qdrant_storage:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  rag_network:
+    driver: bridge
+    

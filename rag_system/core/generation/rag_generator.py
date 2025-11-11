@@ -15,6 +15,7 @@ class LLMClient(Protocol):
     def generate(
         self,
         messages: List[Dict[str, str]],
+        model: str,
         temperature: float = 0.1,
         max_tokens: int = 1000,
     ) -> str:
@@ -105,6 +106,7 @@ class RAGGenerator:
 
         response = self.llm_client.generate(
             messages=messages,
+            model=self.config.model,
             temperature=self.config.temperature,
             max_tokens=self.config.max_response_tokens,
         )
@@ -227,6 +229,7 @@ class OpenAIClient:
     def generate(
         self,
         messages: List[Dict[str, str]],
+        model: str,
         temperature: float = 0.1,
         max_tokens: int = 1000,
     ) -> str:
@@ -235,6 +238,7 @@ class OpenAIClient:
 
         Args:
             messages: List of message dictionaries
+            model: Model name to use for generation
             temperature: Generation temperature
             max_tokens: Maximum response tokens
 
@@ -242,7 +246,7 @@ class OpenAIClient:
             Generated text
         """
         response = self.client.ChatCompletion.create(
-            model="gpt-4-turbo-preview",
+            model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,

@@ -7,7 +7,7 @@ This script helps with creating, updating, and migrating Qdrant collections.
 import argparse
 import logging
 from rag_system.core.indexing import DocumentIndexer, IndexConfig
-from rag_system.config import settings
+from rag_system.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ def create_collection(args):
     """Create new Qdrant collection."""
     logger.info(f"Creating collection: {args.collection_name}")
 
+    settings = get_settings()
     config = IndexConfig(
         collection_name=args.collection_name,
         vector_size=args.vector_size,
@@ -41,6 +42,7 @@ def delete_collection(args):
             logger.info("Deletion cancelled")
             return
 
+    settings = get_settings()
     indexer = DocumentIndexer(qdrant_url=settings.qdrant.url)
     indexer.delete_collection(args.collection_name)
 
@@ -51,6 +53,7 @@ def info_collection(args):
     """Display collection information."""
     logger.info(f"Getting info for collection: {args.collection_name}")
 
+    settings = get_settings()
     indexer = DocumentIndexer(qdrant_url=settings.qdrant.url)
     info = indexer.get_collection_info(args.collection_name)
 

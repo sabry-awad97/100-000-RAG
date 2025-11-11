@@ -30,6 +30,7 @@ class HybridRetriever(BaseRetriever):
     Attributes:
         vector_retriever: Dense vector search implementation
         sparse_retriever: Sparse retrieval implementation (e.g., BM25)
+        embedding_model: Model for encoding queries into embeddings
         reranker: Optional reranker for final scoring
     """
 
@@ -37,6 +38,7 @@ class HybridRetriever(BaseRetriever):
         self,
         vector_retriever: VectorRetriever,
         sparse_retriever: SparseRetriever,
+        embedding_model,
         reranker: Reranker = None,
         fusion_k: int = 60,
     ):
@@ -46,11 +48,13 @@ class HybridRetriever(BaseRetriever):
         Args:
             vector_retriever: Vector search implementation
             sparse_retriever: Sparse search implementation
+            embedding_model: Embedding model for query encoding
             reranker: Optional reranker
             fusion_k: RRF constant for rank fusion
         """
         self.vector_retriever = vector_retriever
         self.sparse_retriever = sparse_retriever
+        self.embedding_model = embedding_model
         self.reranker = reranker
         self.fusion_k = fusion_k
 
@@ -94,10 +98,13 @@ class HybridRetriever(BaseRetriever):
         Returns:
             Dense retrieval results
         """
-        # This would typically use an embedding model
-        # For now, delegate to vector retriever
-        # In production, inject EmbeddingModel dependency
-        raise NotImplementedError("Implement with EmbeddingModel dependency injection")
+        # Embed the query using the injected embedding model
+        query_embedding = self.embedding_model.embed(query)
+
+        # Search using vector retriever
+        return self.vector_retriever.search_vectors(
+            query_vector=query_embedding, top_k=top_k
+        )
 
     def _reciprocal_rank_fusion(
         self, dense: List[RetrievalResult], sparse: List[Tuple[str, float]]

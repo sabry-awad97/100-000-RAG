@@ -23,7 +23,7 @@ from .core import (
 
 from .pipelines import IngestPipeline, RetrievalPipeline, GenerationPipeline
 
-from .config import settings
+from .config import settings, get_settings
 
 __all__ = [
     "SemanticChunker",
@@ -36,4 +36,5 @@ __all__ = [
     "RetrievalPipeline",
     "GenerationPipeline",
     "settings",
+    "get_settings",
 ]
