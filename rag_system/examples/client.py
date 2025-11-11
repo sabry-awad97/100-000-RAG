@@ -104,10 +104,38 @@ class RAGSystemClient:
         """Initialize monitoring."""
         if use_monitoring and self.settings.monitoring.enabled:
             print("📈 Initializing monitor...")
-            self.monitor = RAGMonitor(
-                log_file=self.settings.monitoring.log_file,
-                metrics_enabled=self.settings.monitoring.metrics_enabled,
+
+            # Create and configure logger
+            import logging
+
+            logger = logging.getLogger("rag_system.monitor")
+            logger.setLevel(
+                getattr(logging, self.settings.monitoring.log_level.upper())
             )
+
+            # Add file handler if log_file is specified
+            if self.settings.monitoring.log_file:
+                file_handler = logging.FileHandler(self.settings.monitoring.log_file)
+                file_handler.setLevel(
+                    getattr(logging, self.settings.monitoring.log_level.upper())
+                )
+                formatter = logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                )
+                file_handler.setFormatter(formatter)
+                logger.addHandler(file_handler)
+
+            # Add console handler
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(
+                getattr(logging, self.settings.monitoring.log_level.upper())
+            )
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
+
+            # Initialize monitor with configured logger
+            self.monitor = RAGMonitor(logger=logger)
         else:
             self.monitor = None
             print("⚠️  Monitoring disabled")
