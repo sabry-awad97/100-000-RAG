@@ -1,9 +1,11 @@
 """Configuration module for RAG system."""
 
 from .settings import (
+    LLMConfig,
     QdrantConfig,
     RedisConfig,
     OpenAIConfig,
+    GeminiConfig,
     ChunkingConfig,
     RetrievalConfig,
     CacheConfig,
@@ -15,9 +17,11 @@ from .settings import (
 )
 
 __all__ = [
+    "LLMConfig",
     "QdrantConfig",
     "RedisConfig",
     "OpenAIConfig",
+    "GeminiConfig",
     "ChunkingConfig",
     "RetrievalConfig",
     "CacheConfig",

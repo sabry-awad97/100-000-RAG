@@ -204,7 +204,11 @@ Rules:
 
 
 class OpenAIClient:
-    """OpenAI LLM client implementation."""
+    """
+    OpenAI LLM client implementation.
+
+    Implements the LLMClient protocol for OpenAI's API.
+    """
 
     def __init__(self, api_key: str):
         """
@@ -220,10 +224,9 @@ class OpenAIClient:
     def client(self):
         """Lazy load OpenAI client."""
         if self._client is None:
-            import openai
+            from openai import OpenAI
 
-            openai.api_key = self.api_key
-            self._client = openai
+            self._client = OpenAI(api_key=self.api_key)
         return self._client
 
     def generate(
@@ -245,7 +248,7 @@ class OpenAIClient:
         Returns:
             Generated text
         """
-        response = self.client.ChatCompletion.create(
+        response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
@@ -253,3 +256,95 @@ class OpenAIClient:
         )
 
         return response.choices[0].message.content
+
+
+class GeminiClient:
+    """
+    Google Gemini LLM client implementation.
+
+    Implements the LLMClient protocol for Google's Gemini API.
+    """
+
+    def __init__(self, api_key: str):
+        """
+        Initialize Gemini client.
+
+        Args:
+            api_key: Google Gemini API key
+        """
+        self.api_key = api_key
+        self._client = None
+
+    @property
+    def client(self):
+        """Lazy load Gemini client."""
+        if self._client is None:
+            from google import genai
+            import os
+
+            # Set API key in environment for genai client
+            os.environ["GEMINI_API_KEY"] = self.api_key
+            self._client = genai.Client()
+        return self._client
+
+    def generate(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float = 0.1,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Generate response using Gemini API.
+
+        Args:
+            messages: List of message dictionaries (OpenAI format)
+            model: Model name to use for generation (e.g., "gemini-2.5-flash")
+            temperature: Generation temperature
+            max_tokens: Maximum response tokens
+
+        Returns:
+            Generated text
+        """
+        # Convert OpenAI message format to Gemini format
+        contents = self._convert_messages_to_gemini_format(messages)
+
+        # Generate response
+        response = self.client.models.generate_content(
+            model=model,
+            contents=contents,
+            config={
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            },
+        )
+
+        return response.text
+
+    def _convert_messages_to_gemini_format(
+        self, messages: List[Dict[str, str]]
+    ) -> str:
+        """
+        Convert OpenAI message format to Gemini format.
+
+        Args:
+            messages: List of message dictionaries in OpenAI format
+
+        Returns:
+            Formatted content string for Gemini
+        """
+        # Gemini uses a simpler format - combine system and user messages
+        content_parts = []
+
+        for message in messages:
+            role = message.get("role", "")
+            content = message.get("content", "")
+
+            if role == "system":
+                content_parts.append(f"Instructions: {content}")
+            elif role == "user":
+                content_parts.append(f"Query: {content}")
+            elif role == "assistant":
+                content_parts.append(f"Response: {content}")
+
+        return "\n\n".join(content_parts)

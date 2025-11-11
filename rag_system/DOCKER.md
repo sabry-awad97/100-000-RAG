@@ -116,9 +116,19 @@ embeddings = embedder.embed_texts(["Text 1", "Text 2"])
 **Model Specifications:**
 
 - **Model**: `embeddinggemma:latest`
-- **Dimensions**: 768
+- **Dimensions**: 768 (normalized by default)
+- **Context Length**: Up to 2K tokens (~1500 words)
+- **Language**: Primarily English (performance varies on other languages)
+- **Normalization**: Pre-normalized for cosine similarity
 - **Provider**: Docker AI
 - **License**: Open source
+
+**Important Considerations:**
+
+- **Text Length**: Texts longer than 2K tokens will be automatically truncated
+- **Chunking**: For documents longer than 2K tokens, use the semantic chunker
+- **Language**: Best performance on English text
+- **Similarity**: Embeddings are normalized, use cosine similarity for comparison
 
 ## Advanced Usage
 

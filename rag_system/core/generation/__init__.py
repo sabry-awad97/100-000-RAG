@@ -1,5 +1,12 @@
-"""Generation module for RAG response generation."""
+"""Generation module for RAG system."""
 
-from .rag_generator import RAGGenerator, GenerationConfig, LLMClient, OpenAIClient
+from .rag_generator import RAGGenerator, GenerationConfig, OpenAIClient, GeminiClient
+from .llm_factory import LLMClientFactory
 
-__all__ = ["RAGGenerator", "GenerationConfig", "LLMClient", "OpenAIClient"]
+__all__ = [
+    "RAGGenerator",
+    "GenerationConfig",
+    "OpenAIClient",
+    "GeminiClient",
+    "LLMClientFactory",
+]

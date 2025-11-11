@@ -5,7 +5,8 @@ This module implements a production-ready hybrid search system using
 Reciprocal Rank Fusion and cross-encoder reranking.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
+import logging
 
 from .base_retriever import (
     BaseRetriever,
@@ -14,6 +15,8 @@ from .base_retriever import (
     Reranker,
     RetrievalResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class HybridRetriever(BaseRetriever):
@@ -58,6 +61,9 @@ class HybridRetriever(BaseRetriever):
         self.reranker = reranker
         self.fusion_k = fusion_k
 
+        # Cache for storing retrieved documents during fusion
+        self._doc_cache: Dict[str, RetrievalResult] = {}
+
     def retrieve(self, query: str, top_k: int = 10) -> List[RetrievalResult]:
         """
         Retrieve most relevant documents using hybrid approach.
@@ -69,8 +75,15 @@ class HybridRetriever(BaseRetriever):
         Returns:
             Ranked list of relevant documents
         """
+        # Clear document cache for new query
+        self._doc_cache.clear()
+
         # Get dense vector results
         dense_results = self._get_dense_results(query, top_k * 2)
+
+        # Cache dense results for later lookup
+        for result in dense_results:
+            self._doc_cache[result.doc_id] = result
 
         # Get sparse (BM25) results
         sparse_results = self.sparse_retriever.search_sparse(query, top_k * 2)
@@ -142,15 +155,41 @@ class HybridRetriever(BaseRetriever):
         """
         Build RetrievalResult objects from fused rankings.
 
+        Uses cached documents from the retrieval phase to materialize
+        RetrievalResult objects with fused scores.
+
         Args:
-            fused_results: List of (doc_id, score) tuples
+            fused_results: List of (doc_id, fused_score) tuples
 
         Returns:
-            List of RetrievalResult objects
+            List of RetrievalResult objects with fused scores
         """
-        # This would fetch actual documents from storage
-        # Implement with document store dependency
-        raise NotImplementedError("Implement with DocumentStore dependency injection")
+        candidates = []
+
+        for doc_id, fused_score in fused_results:
+            # Look up document from cache (populated during retrieval)
+            if doc_id in self._doc_cache:
+                cached_doc = self._doc_cache[doc_id]
+
+                # Create new RetrievalResult with fused score
+                result = RetrievalResult(
+                    doc_id=cached_doc.doc_id,
+                    score=fused_score,  # Use fused score instead of original
+                    text=cached_doc.text,
+                    metadata=cached_doc.metadata,
+                )
+                candidates.append(result)
+            else:
+                # Document not in cache - log and skip
+                # This can happen if sparse retrieval returns docs not in dense results
+                logger.warning(
+                    f"Document {doc_id} not found in cache during fusion. "
+                    "This may indicate sparse retrieval returned documents "
+                    "not available in the vector store."
+                )
+                continue
+
+        return candidates
 
 
 class ReciprocalRankFusion:

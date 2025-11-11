@@ -80,6 +80,7 @@ print(result["sources"])
 Configuration is managed through environment variables. See `.env.example` for all options.
 
 Key settings:
+
 - `OPENAI_API_KEY`: OpenAI API key (for LLM generation only)
 - `QDRANT_URL`: Qdrant server URL
 - `QDRANT_VECTOR_SIZE`: Vector dimensions (768 for Gemma)
@@ -104,6 +105,7 @@ pytest --cov=rag_system tests/
 ## Docker Services
 
 The system uses Docker for:
+
 - **Qdrant**: Vector database
 - **Redis**: Semantic cache
 - **Local Embeddings**: Docker AI Gemma model for local embedding generation
@@ -119,7 +121,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-**Local Embeddings**: The system uses the Gemma embedding model from Docker AI, eliminating external API calls for embeddings. This provides 768-dimensional embeddings with zero cost and complete data privacy.
+**Local Embeddings**: The system uses the Gemma embedding model from Docker AI, eliminating external API calls for embeddings. This provides 768-dimensional normalized embeddings with zero cost and complete data privacy. The model supports up to 2K tokens per text and is optimized for English content.
 
 See [DOCKER.md](DOCKER.md) for complete Docker documentation.
 

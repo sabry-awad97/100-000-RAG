@@ -1,14 +1,18 @@
 """
-Configuration settings for RAG system.
+Configuration management for RAG system.
 
-This module centralizes all configuration using environment variables
-and provides type-safe configuration access.
+Uses Pydantic for validation and environment variables for configuration.
 """
 
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, asdict
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from rag_system directory
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
 
 
 @dataclass
@@ -28,7 +32,14 @@ class RedisConfig:
     host: str = os.getenv("REDIS_HOST", "localhost")
     port: int = int(os.getenv("REDIS_PORT", "6379"))
     db: int = int(os.getenv("REDIS_DB", "0"))
-    password: Optional[str] = os.getenv("REDIS_PASSWORD")
+    password: str | None = os.getenv("REDIS_PASSWORD")
+
+
+@dataclass
+class LLMConfig:
+    """LLM provider configuration."""
+
+    provider: str = os.getenv("LLM_PROVIDER", "openai")  # "openai" or "gemini"
 
 
 @dataclass
@@ -40,6 +51,16 @@ class OpenAIConfig:
     chat_model: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4-turbo-preview")
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.1"))
+
+
+@dataclass
+class GeminiConfig:
+    """Google Gemini API configuration."""
+
+    api_key: str = os.getenv("GEMINI_API_KEY", "")
+    chat_model: str = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
+    max_tokens: int = int(os.getenv("GEMINI_MAX_TOKENS", "1000"))
+    temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.1"))
 
 
 @dataclass
@@ -79,7 +100,7 @@ class MonitoringConfig:
 
     enabled: bool = os.getenv("MONITORING_ENABLED", "true").lower() == "true"
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    log_file: Optional[str] = os.getenv("LOG_FILE")
+    log_file: str | None = os.getenv("LOG_FILE")
 
 
 class Settings:
@@ -94,9 +115,11 @@ class Settings:
 
     def __init__(self):
         """Initialize settings from environment variables."""
+        self.llm = LLMConfig()
         self.qdrant = QdrantConfig()
         self.redis = RedisConfig()
         self.openai = OpenAIConfig()
+        self.gemini = GeminiConfig()
         self.chunking = ChunkingConfig()
         self.retrieval = RetrievalConfig()
         self.cache = CacheConfig()
@@ -107,8 +130,23 @@ class Settings:
 
     def _validate(self):
         """Validate critical configuration."""
-        if not self.openai.api_key:
-            raise ValueError("OPENAI_API_KEY environment variable must be set")
+        # Only validate the active LLM provider
+        provider = self.llm.provider.lower()
+
+        if provider == "gemini":
+            if not self.gemini.api_key:
+                raise ValueError(
+                    "GEMINI_API_KEY environment variable must be set when using Gemini"
+                )
+        elif provider == "openai":
+            if not self.openai.api_key:
+                raise ValueError(
+                    "OPENAI_API_KEY environment variable must be set when using OpenAI"
+                )
+        else:
+            raise ValueError(
+                f"Unsupported LLM provider: {provider}. Use 'openai' or 'gemini'"
+            )
 
         if self.chunking.chunk_size <= self.chunking.overlap:
             raise ValueError("Chunk size must be greater than overlap")
@@ -139,13 +177,16 @@ class Settings:
         Returns:
             Dictionary representation of settings
         """
-        from dataclasses import asdict
-
         return {
+            "llm": asdict(self.llm),
             "qdrant": asdict(self.qdrant),
             "redis": asdict(self.redis),
             "openai": {
                 **asdict(self.openai),
+                "api_key": "***",  # Mask API key
+            },
+            "gemini": {
+                **asdict(self.gemini),
                 "api_key": "***",  # Mask API key
             },
             "chunking": asdict(self.chunking),
@@ -156,7 +197,7 @@ class Settings:
 
 
 # Lazy initialization of settings
-_settings_instance: Optional[Settings] = None
+_settings_instance: Settings | None = None
 
 
 def get_settings(validate: bool = False) -> Settings:
@@ -181,10 +222,17 @@ def get_settings(validate: bool = False) -> Settings:
         _settings_instance = Settings()
 
     if validate:
-        # Validate required settings
-        if not _settings_instance.openai.api_key:
+        # Validate required settings based on LLM provider
+        provider = _settings_instance.llm.provider.lower()
+
+        if provider == "openai" and not _settings_instance.openai.api_key:
             raise ValueError(
-                "OPENAI_API_KEY environment variable is required. "
+                "OPENAI_API_KEY environment variable is required when using OpenAI. "
+                "Please set it in your .env file or environment."
+            )
+        elif provider == "gemini" and not _settings_instance.gemini.api_key:
+            raise ValueError(
+                "GEMINI_API_KEY environment variable is required when using Gemini. "
                 "Please set it in your .env file or environment."
             )
 
