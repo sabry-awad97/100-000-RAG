@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Environment files (may contain secrets)
+.env
+.env.*
+.env.local
+.env.*.local
+.envrc
+
+# Virtual environments
+.venv
+.ruff_cache
